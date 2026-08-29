@@ -115,34 +115,62 @@ function buildCorpus(skills) {
   }
   const n = docs.size;
   const idf = (term) => Math.log(1 + n / (1 + (df.get(term) || 0)));
-  return { docs, idf };
+
+  // Performance Optimization: Pre-calculate and normalize document vectors.
+  // This avoids recalculating the TF-IDF weights and vector magnitude (L2 norm)
+  // on every query or document pair comparison.
+  const docVectors = new Map();
+  for (const [name, tf] of docs) {
+    docVectors.set(name, vec(tf, idf));
+  }
+
+  return { docs, idf, docVectors };
 }
 
 function vec(tf, idf) {
   const v = new Map();
-  for (const [term, f] of tf) v.set(term, f * idf(term));
+  let normSq = 0;
+
+  // Performance Optimization: Calculate magnitude (normSq) during vector creation
+  // and normalize the vector elements in-place.
+  for (const [term, f] of tf) {
+    const w = f * idf(term);
+    v.set(term, w);
+    normSq += w * w;
+  }
+  const norm = Math.sqrt(normSq);
+  if (norm > 0) {
+    for (const [term, w] of v) {
+      v.set(term, w / norm);
+    }
+  }
   return v;
 }
 
 function cosine(a, b) {
   let dot = 0;
-  let na = 0;
-  let nb = 0;
+  // Performance Optimization: Since inputs 'a' and 'b' are now pre-normalized vectors,
+  // we only need to compute the dot product. Also, iterating over the smaller map
+  // minimizes lookups.
+  if (a.size > b.size) {
+    const temp = a;
+    a = b;
+    b = temp;
+  }
   for (const [t, w] of a) {
-    na += w * w;
     const bw = b.get(t);
     if (bw) dot += w * bw;
   }
-  for (const w of b.values()) nb += w * w;
-  if (!na || !nb) return 0;
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  return dot;
 }
 
 function rankSkills(prompt, corpus) {
   const pv = vec(termFreq(tokenize(prompt)), corpus.idf);
   const scores = [];
-  for (const [name, tf] of corpus.docs) {
-    scores.push({ name, score: cosine(pv, vec(tf, corpus.idf)) });
+  // Performance Optimization: Use pre-calculated document vectors instead of
+  // recalculating them for every document.
+  for (const [name, v] of corpus.docVectors) {
+    scores.push({ name, score: cosine(pv, v) });
   }
   scores.sort((a, b) => b.score - a.score);
   return scores;
@@ -358,8 +386,8 @@ function runDeterministic(minRank1) {
   const names = [...corpus.docs.keys()];
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
-      const a = vec(corpus.docs.get(names[i]), corpus.idf);
-      const b = vec(corpus.docs.get(names[j]), corpus.idf);
+      const a = corpus.docVectors.get(names[i]);
+      const b = corpus.docVectors.get(names[j]);
       const sim = cosine(a, b);
       if (sim >= COLLISION_ERROR) {
         console.log(`  ✗  collision: ${names[i]} ↔ ${names[j]} descriptions ${(sim * 100).toFixed(0)}% similar`);
