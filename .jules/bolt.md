@@ -1,0 +1,3 @@
+## 2024-05-18 - Caching TF-IDF vectors in run-evals.js
+**학습 내용:** In `scripts/run-evals.js`, `vec()` and `cosine()` were called repeatedly inside nested loops (calculating vector similarities for all skills vs all skills and all prompts vs all skills). This redundant vector creation and norm calculation (inside `cosine()`) was a performance bottleneck.
+**적용 계획:** By computing TF-IDF vectors once and caching their Euclidean norms during the corpus build phase, we significantly reduce redundant mathematical operations and nested iterations, dropping baseline eval runtime from ~5.5s to ~3.3s for 50 iterations.
