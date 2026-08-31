@@ -115,7 +115,13 @@ function buildCorpus(skills) {
   }
   const n = docs.size;
   const idf = (term) => Math.log(1 + n / (1 + (df.get(term) || 0)));
-  return { docs, idf };
+
+  // Optimization: pre-calculate skill vectors at corpus build time
+  // instead of computing them for every prompt evaluation.
+  const vecs = new Map();
+  for (const [name, tf] of docs) vecs.set(name, vec(tf, idf));
+
+  return { docs, idf, vecs };
 }
 
 function vec(tf, idf) {
@@ -141,8 +147,8 @@ function cosine(a, b) {
 function rankSkills(prompt, corpus) {
   const pv = vec(termFreq(tokenize(prompt)), corpus.idf);
   const scores = [];
-  for (const [name, tf] of corpus.docs) {
-    scores.push({ name, score: cosine(pv, vec(tf, corpus.idf)) });
+  for (const [name, docVec] of corpus.vecs) {
+    scores.push({ name, score: cosine(pv, docVec) });
   }
   scores.sort((a, b) => b.score - a.score);
   return scores;
@@ -355,11 +361,11 @@ function runDeterministic(minRank1) {
   }
 
   // Routing collisions across the catalog
-  const names = [...corpus.docs.keys()];
+  const names = [...corpus.vecs.keys()];
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
-      const a = vec(corpus.docs.get(names[i]), corpus.idf);
-      const b = vec(corpus.docs.get(names[j]), corpus.idf);
+      const a = corpus.vecs.get(names[i]);
+      const b = corpus.vecs.get(names[j]);
       const sim = cosine(a, b);
       if (sim >= COLLISION_ERROR) {
         console.log(`  ✗  collision: ${names[i]} ↔ ${names[j]} descriptions ${(sim * 100).toFixed(0)}% similar`);

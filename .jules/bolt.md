@@ -1,0 +1,3 @@
+## 2026-08-31 - Pre-compute Vectors to Avoid O(n^2) Re-calculations
+**학습 내용:** In the skill evaluation runner (`scripts/run-evals.js`), the TF-IDF vectors for the skill descriptions were being re-calculated on the fly inside nested loops (both for every positive/negative trigger test, and importantly, in an O(n^2) collision detection matrix). Since vector generation involves mathematical operations and object creations over text tokens, recalculating it repeatedly created an unneeded bottleneck.
+**적용 계획:** For natural language processing or search evaluations over static catalogs, always pre-compute and cache the feature vectors (like TF-IDF vectors) at corpus build time. Never regenerate them dynamically inside comparison loops.
