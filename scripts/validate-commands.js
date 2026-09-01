@@ -148,7 +148,7 @@ function main() {
     const malformed = [
       ['.claude/commands', byTool.claude, claudeStem],
       ['.gemini/commands', byTool.gemini, tomlStem],
-      ['commands/', byTool.antigravity, tomlStem],
+      ['commands', byTool.antigravity, tomlStem],
     ].filter(([, commands, stem]) => Object.prototype.hasOwnProperty.call(commands, stem) && commands[stem] == null);
 
     if (malformed.length) {

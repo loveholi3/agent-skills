@@ -148,3 +148,20 @@ test('parses escaped quotes in double-quoted TOML descriptions', () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
 });
+
+test('handles unreadable command files gracefully', () => {
+  const root = makeSandbox();
+
+  writeClaudeCommand(root, 'review', 'description: Review a change');
+  writeTomlCommand(root, path.join('.gemini', 'commands'), 'review', 'description = "Review a change"');
+
+  const badPath = path.join(root, 'commands', 'review.toml');
+  fs.mkdirSync(path.dirname(badPath), { recursive: true });
+  fs.mkdirSync(badPath); // Creating a directory instead of a file makes it unreadable as a file
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /✗  review — cannot read file:/);
+  assert.match(result.stdout, /commands\/review — missing or malformed description/);
+});
