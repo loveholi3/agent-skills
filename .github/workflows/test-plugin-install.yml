@@ -13,6 +13,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -21,6 +22,9 @@ jobs:
 
       - name: Validate all skills
         run: node scripts/validate-skills.js
+
+      - name: Test skill validator rules
+        run: node --test scripts/lib/skill-lint-test.js
 
       - name: Validate manifest versions
         run: node scripts/validate-versions.js
