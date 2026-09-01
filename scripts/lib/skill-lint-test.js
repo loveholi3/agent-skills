@@ -46,10 +46,9 @@ test('lintSkill returns error when SKILL.md is unreadable', () => {
   const skillPath = path.join(skillDir, 'SKILL.md');
 
   fs.mkdirSync(skillDir, { recursive: true });
-  fs.writeFileSync(skillPath, 'content');
-
-  // Make the file unreadable
-  fs.chmodSync(skillPath, 0o000);
+  // To robustly simulate an unreadable file across all platforms/users, create a directory
+  // instead of a file so readFileSync throws EISDIR.
+  fs.mkdirSync(skillPath);
 
   const knownSkills = new Set([skillName]);
   const result = lintSkill(skillName, root, knownSkills);
