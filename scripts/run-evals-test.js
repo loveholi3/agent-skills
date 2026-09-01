@@ -148,6 +148,17 @@ test('fails when an eval case is below the required minimums', () => {
   assert.match(result.stdout, /below required minimums/);
 });
 
+test('fails when an eval case has invalid JSON', () => {
+  const root = makeSandbox();
+  writeSkill(root, 'alpha-skill', 'Handles alpha widgets. Use when changing alpha widgets.');
+  fs.writeFileSync(path.join(root, 'evals', 'cases', 'alpha-skill.json'), '{ invalid json ]\n');
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /invalid JSON/);
+});
+
 test('fails when a behavioral eval references a missing fixture', () => {
   const root = makeSandbox();
   writeSkill(root, 'alpha-skill', 'Handles alpha widgets. Use when changing alpha widgets.');
