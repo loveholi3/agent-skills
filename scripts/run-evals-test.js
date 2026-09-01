@@ -130,6 +130,17 @@ test('fails when a skill has no eval case file', () => {
   assert.match(result.stdout, /no eval case file/);
 });
 
+test('fails when a case file contains invalid JSON', () => {
+  const root = makeSandbox();
+  writeSkill(root, 'alpha-skill', 'Handles alpha widgets.');
+  fs.writeFileSync(path.join(root, 'evals', 'cases', 'alpha-skill.json'), '{ invalid json }');
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /invalid JSON —/);
+});
+
 test('fails when an eval case is below the required minimums', () => {
   const root = makeSandbox();
   writeSkill(root, 'alpha-skill', 'Handles alpha widgets. Use when changing alpha widgets.');
