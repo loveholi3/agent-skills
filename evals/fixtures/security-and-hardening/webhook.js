@@ -1,7 +1,7 @@
 'use strict';
 
 async function previewWebhook(url, fetchImpl = fetch) {
-  const response = await fetchImpl(url, { redirect: 'follow' });
+  const response = await fetchImpl(url, { redirect: 'error' });
   return {
     status: response.status,
     body: (await response.text()).slice(0, 2048),
