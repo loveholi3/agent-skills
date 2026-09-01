@@ -18,11 +18,17 @@ function readManifestVersion(manifestPath) {
   return manifest.version ?? manifest.plugins?.[0]?.version;
 }
 
-const expectedVersion = execFileSync(
-  "git",
-  ["describe", "--tags", "--abbrev=0"],
-  { encoding: "utf8" },
-).trim();
+let expectedVersion;
+try {
+  expectedVersion = execFileSync(
+    "git",
+    ["describe", "--tags", "--abbrev=0"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+  ).trim();
+} catch (e) {
+  // If no tags are found, fall back to the main plugin.json version
+  expectedVersion = readManifestVersion("plugin.json");
+}
 
 for (const manifestPath of manifestPaths) {
   const version = readManifestVersion(manifestPath);
