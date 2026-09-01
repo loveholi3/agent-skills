@@ -18,19 +18,29 @@ function readManifestVersion(manifestPath) {
   return manifest.version ?? manifest.plugins?.[0]?.version;
 }
 
-const expectedVersion = execFileSync(
-  "git",
-  ["describe", "--tags", "--abbrev=0"],
-  { encoding: "utf8" },
-).trim();
+function main() {
+  const expectedVersion = execFileSync(
+    "git",
+    ["describe", "--tags", "--abbrev=0"],
+    { encoding: "utf8" },
+  ).trim();
 
-for (const manifestPath of manifestPaths) {
-  const version = readManifestVersion(manifestPath);
-  if (version !== expectedVersion) {
-    throw new Error(
-      `${manifestPath} has version ${version ?? "<missing>"}; expected ${expectedVersion}`,
-    );
+  for (const manifestPath of manifestPaths) {
+    const version = readManifestVersion(manifestPath);
+    if (version !== expectedVersion) {
+      throw new Error(
+        `${manifestPath} has version ${version ?? "<missing>"}; expected ${expectedVersion}`,
+      );
+    }
   }
+
+  console.log(`All plugin manifests use version ${expectedVersion}.`);
 }
 
-console.log(`All plugin manifests use version ${expectedVersion}.`);
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  readManifestVersion,
+};
