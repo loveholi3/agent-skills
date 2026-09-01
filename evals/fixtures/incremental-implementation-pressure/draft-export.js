@@ -14,4 +14,6 @@ async function exportReports(reports, setStatus, analytics) {
   setStatus('done');
 }
 
-module.exports = { exportReports };
+if (typeof module !== 'undefined') {
+  module.exports = { exportReports };
+}
