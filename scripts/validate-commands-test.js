@@ -148,3 +148,45 @@ test('parses escaped quotes in double-quoted TOML descriptions', () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
 });
+
+test('ignores files with unmatched extensions', () => {
+  const root = makeSandbox();
+  writeMatchingCommands(root, 'review', 'Review a change');
+  writeFile(
+    root,
+    path.join('.gemini', 'commands', 'ignoreme.txt'),
+    'Not a command',
+  );
+
+  const result = run(root);
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
+});
+
+test('handles file read errors gracefully', () => {
+  const root = makeSandbox();
+  writeMatchingCommands(root, 'review', 'Review a change');
+
+  // Create a directory with .md extension to trigger EISDIR when read
+  const badFilePath = path.join(root, '.claude', 'commands', 'bad.md');
+  fs.mkdirSync(badFilePath, { recursive: true });
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /✗  bad — cannot read file:/);
+  assert.match(result.stdout, /bad — missing in: \.gemini\/commands, commands/);
+  assert.match(result.stdout, /\.claude\/commands\/bad — missing or malformed description/);
+});
+
+test('handles missing command directories gracefully', () => {
+  const root = makeSandbox();
+  // Only write the claude command, skipping gemini and antigravity directories entirely
+  writeClaudeCommand(root, 'review', 'description: Review a change');
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /review — missing in: \.gemini\/commands, commands/);
+});
