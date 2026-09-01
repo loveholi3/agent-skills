@@ -148,3 +148,22 @@ test('parses escaped quotes in double-quoted TOML descriptions', () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
 });
+
+test('handles unreadable command files gracefully', () => {
+  const root = makeSandbox();
+  const description = 'Unreadable command';
+
+  // Create a directory where a file is expected to trigger an EISDIR error on read
+  const unreadablePath = path.join(root, '.claude', 'commands', 'unreadable.md');
+  fs.mkdirSync(unreadablePath, { recursive: true });
+
+  writeTomlCommand(root, path.join('.gemini', 'commands'), 'unreadable', `description = "${description}"`);
+  writeTomlCommand(root, 'commands', 'unreadable', `description = "${description}"`);
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /✗  unreadable — cannot read file:/);
+  assert.match(result.stdout, /\.claude\/commands\/unreadable — missing or malformed description/);
+  assert.match(result.stdout, /1 commands checked — 1 error\(s\) — FAILED/);
+});
