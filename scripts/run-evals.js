@@ -150,34 +150,43 @@ function rankSkills(prompt, corpus) {
 
 // ---------- loading ----------
 
-function loadSkills() {
-  const skills = [];
-  for (const dir of fs.readdirSync(SKILLS_DIR)) {
+async function loadSkills() {
+  const dirs = await fs.promises.readdir(SKILLS_DIR);
+
+  const parsedSkills = await Promise.all(dirs.map(async (dir) => {
     const file = path.join(SKILLS_DIR, dir, 'SKILL.md');
-    if (!fs.existsSync(file)) continue;
-    const src = fs.readFileSync(file, 'utf8');
-    const m = src.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
-    if (!m) continue;
-    const name = (m[1].match(/^name:\s*(.+)$/m) || [])[1];
-    const description = (m[1].match(/^description:\s*(.+)$/m) || [])[1];
-    if (name && description) skills.push({ name: name.trim(), description: description.trim(), dir });
-  }
-  return skills;
+    try {
+      const src = await fs.promises.readFile(file, 'utf8');
+      const m = src.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+      if (!m) return null;
+      const name = (m[1].match(/^name:\s*(.+)$/m) || [])[1];
+      const description = (m[1].match(/^description:\s*(.+)$/m) || [])[1];
+      if (name && description) return { name: name.trim(), description: description.trim(), dir };
+      return null;
+    } catch (e) {
+      // Ignore if file doesn't exist
+      return null;
+    }
+  }));
+
+  return parsedSkills.filter(Boolean);
 }
 
-function loadCases() {
+async function loadCases() {
   if (!fs.existsSync(CASES_DIR)) return [];
-  return fs
-    .readdirSync(CASES_DIR)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => {
-      const raw = fs.readFileSync(path.join(CASES_DIR, f), 'utf8');
-      try {
-        return { file: f, data: JSON.parse(raw) };
-      } catch (e) {
-        return { file: f, parseError: e.message };
-      }
-    });
+  const files = await fs.promises.readdir(CASES_DIR);
+  return Promise.all(
+    files
+      .filter((f) => f.endsWith('.json'))
+      .map(async (f) => {
+        const raw = await fs.promises.readFile(path.join(CASES_DIR, f), 'utf8');
+        try {
+          return { file: f, data: JSON.parse(raw) };
+        } catch (e) {
+          return { file: f, parseError: e.message };
+        }
+      })
+  );
 }
 
 function resolveFixturePath(root, rel) {
@@ -195,9 +204,8 @@ function resolveFixturePath(root, rel) {
 
 // ---------- tier 2 ----------
 
-function runDeterministic(minRank1) {
-  const skills = loadSkills();
-  const cases = loadCases();
+async function runDeterministic(minRank1) {
+  const [skills, cases] = await Promise.all([loadSkills(), loadCases()]);
   const corpus = buildCorpus(skills);
   const skillNames = new Set(skills.map((s) => s.name));
 
@@ -461,7 +469,7 @@ function parseGrading(raw, expectedCount) {
 // resolve to files outside the project tree for both reads and writes.
 const VALID_SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-function runBehavioral(skillName, dryRun) {
+async function runBehavioral(skillName, dryRun) {
   if (!skillName || !VALID_SKILL_NAME.test(skillName)) {
     console.error(`Invalid skill name: "${skillName}" — must be kebab-case (e.g. "my-skill")`);
     process.exit(1);
@@ -472,12 +480,12 @@ function runBehavioral(skillName, dryRun) {
     process.exit(1);
   }
   const skillFile = path.join(SKILLS_DIR, skillName, 'SKILL.md');
-  const d = JSON.parse(fs.readFileSync(caseFile, 'utf8'));
+  const d = JSON.parse(await fs.promises.readFile(caseFile, 'utf8'));
   if (!d.evals?.length) {
     console.error(`"${skillName}" has no behavioral evals`);
     process.exit(1);
   }
-  if (!dryRun) fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  if (!dryRun) await fs.promises.mkdir(RESULTS_DIR, { recursive: true });
   let failures = 0;
 
   for (const ev of d.evals) {
@@ -561,7 +569,7 @@ function runBehavioral(skillName, dryRun) {
 
 // ---------- main ----------
 
-function main(args = process.argv.slice(2)) {
+async function main(args = process.argv.slice(2)) {
   const bIdx = args.indexOf('--behavioral');
   const rankIdx = args.indexOf('--min-rank1');
   let minRank1 = null;
@@ -573,17 +581,22 @@ function main(args = process.argv.slice(2)) {
       process.exit(1);
     }
   }
-  if (bIdx !== -1) {
-    if (minRank1 !== null) {
-      console.error('--min-rank1 applies only to deterministic evals');
-      process.exit(1);
+  try {
+    if (bIdx !== -1) {
+      if (minRank1 !== null) {
+        console.error('--min-rank1 applies only to deterministic evals');
+        process.exit(1);
+      }
+      await runBehavioral(args[bIdx + 1], args.includes('--dry-run'));
+    } else {
+      await runDeterministic(minRank1);
     }
-    runBehavioral(args[bIdx + 1], args.includes('--dry-run'));
-  } else {
-    runDeterministic(minRank1);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
   }
 }
 
 if (require.main === module) main();
 
-module.exports = { materializeWorkspace, parseGrading };
+module.exports = { materializeWorkspace, parseGrading, loadSkills, loadCases };
