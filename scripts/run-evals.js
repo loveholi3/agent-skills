@@ -165,19 +165,25 @@ function loadSkills() {
   return skills;
 }
 
-function loadCases() {
+async function loadCases() {
   if (!fs.existsSync(CASES_DIR)) return [];
-  return fs
-    .readdirSync(CASES_DIR)
+  const files = await fs.promises.readdir(CASES_DIR);
+
+  // OPTIMIZATION: Replacing synchronous fs.readFileSync loops with asynchronous
+  // operations using Promise.all() prevents event loop blocking, which is
+  // especially beneficial when scaling up evals testing, allowing parallel file reads.
+  const promises = files
     .filter((f) => f.endsWith('.json'))
-    .map((f) => {
-      const raw = fs.readFileSync(path.join(CASES_DIR, f), 'utf8');
+    .map(async (f) => {
       try {
+        const raw = await fs.promises.readFile(path.join(CASES_DIR, f), 'utf8');
         return { file: f, data: JSON.parse(raw) };
       } catch (e) {
         return { file: f, parseError: e.message };
       }
     });
+
+  return Promise.all(promises);
 }
 
 function resolveFixturePath(root, rel) {
@@ -195,9 +201,9 @@ function resolveFixturePath(root, rel) {
 
 // ---------- tier 2 ----------
 
-function runDeterministic(minRank1) {
+async function runDeterministic(minRank1) {
   const skills = loadSkills();
-  const cases = loadCases();
+  const cases = await loadCases();
   const corpus = buildCorpus(skills);
   const skillNames = new Set(skills.map((s) => s.name));
 
@@ -561,7 +567,7 @@ function runBehavioral(skillName, dryRun) {
 
 // ---------- main ----------
 
-function main(args = process.argv.slice(2)) {
+async function main(args = process.argv.slice(2)) {
   const bIdx = args.indexOf('--behavioral');
   const rankIdx = args.indexOf('--min-rank1');
   let minRank1 = null;
@@ -580,10 +586,13 @@ function main(args = process.argv.slice(2)) {
     }
     runBehavioral(args[bIdx + 1], args.includes('--dry-run'));
   } else {
-    runDeterministic(minRank1);
+    await runDeterministic(minRank1);
   }
 }
 
-if (require.main === module) main();
+if (require.main === module) main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 
 module.exports = { materializeWorkspace, parseGrading };
