@@ -148,3 +148,40 @@ test('parses escaped quotes in double-quoted TOML descriptions', () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
 });
+
+test('handles missing directories gracefully', () => {
+  const root = makeSandbox();
+
+  // No directories are created, so they don't exist
+  const result = run(root);
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /0 commands checked — 0 error\(s\) — PASSED/);
+});
+
+test('ignores files with incorrect extensions', () => {
+  const root = makeSandbox();
+
+  // Write files with incorrect extensions
+  writeFile(root, path.join('.claude', 'commands', 'readme.txt'), 'Not a command');
+  writeFile(root, path.join('.gemini', 'commands', 'config.json'), '{}');
+  writeFile(root, path.join('commands', 'script.sh'), 'echo hello');
+
+  const result = run(root);
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /0 commands checked — 0 error\(s\) — PASSED/);
+});
+
+test('catches and reports errors when files cannot be read', () => {
+  const root = makeSandbox();
+
+  // Create a directory with a .md extension so reading it as a file fails
+  const dirPath = path.join(root, '.claude', 'commands', 'broken.md');
+  fs.mkdirSync(dirPath, { recursive: true });
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /✗  broken — cannot read file:/);
+});
