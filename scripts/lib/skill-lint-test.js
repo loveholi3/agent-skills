@@ -39,16 +39,25 @@ test('lintSkill returns error when SKILL.md is missing', () => {
   assert.equal(result.exempt, false);
 });
 
-test('lintSkill returns error when SKILL.md is unreadable', () => {
+test('lintSkill returns error when SKILL.md is unreadable', (t) => {
   const root = makeSandbox();
   const skillName = 'unreadable-skill';
   const skillDir = path.join(root, skillName);
   const skillPath = path.join(skillDir, 'SKILL.md');
 
   fs.mkdirSync(skillDir, { recursive: true });
-  // To robustly simulate an unreadable file across all platforms/users, create a directory
-  // instead of a file so readFileSync throws EISDIR.
-  fs.mkdirSync(skillPath);
+  fs.writeFileSync(skillPath, 'content');
+
+  // Mock fs.readFileSync to reliably simulate an unreadable file,
+  // preventing issues on Windows or root CI environments where chmod or
+  // other filesystem workarounds may fail.
+  const originalReadFileSync = fs.readFileSync;
+  t.mock.method(fs, 'readFileSync', (filePath, ...args) => {
+    if (filePath === skillPath) {
+      throw new Error('EACCES: permission denied');
+    }
+    return originalReadFileSync(filePath, ...args);
+  });
 
   const knownSkills = new Set([skillName]);
   const result = lintSkill(skillName, root, knownSkills);
@@ -56,6 +65,7 @@ test('lintSkill returns error when SKILL.md is unreadable', () => {
   // Check if it starts with the expected error message prefix
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /^Unreadable SKILL\.md: /);
+  assert.match(result.errors[0], /EACCES/);
   assert.deepEqual(result.warnings, []);
   assert.equal(result.exempt, false);
 });
