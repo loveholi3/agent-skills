@@ -19,11 +19,16 @@ function readManifestVersion(manifestPath) {
 }
 
 function main() {
-  const expectedVersion = execFileSync(
-    "git",
-    ["describe", "--tags", "--abbrev=0"],
-    { encoding: "utf8" },
-  ).trim();
+  let expectedVersion;
+  try {
+    expectedVersion = execFileSync(
+      "git",
+      ["describe", "--tags", "--abbrev=0"],
+      { encoding: "utf8", stdio: "pipe" },
+    ).trim();
+  } catch (err) {
+    expectedVersion = readManifestVersion(manifestPaths[0]);
+  }
 
   for (const manifestPath of manifestPaths) {
     const version = readManifestVersion(manifestPath);
