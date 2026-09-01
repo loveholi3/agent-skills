@@ -316,8 +316,16 @@ function runDeterministic(minRank1) {
     // With an "owner", the negative becomes a pairwise routing test: the
     // declared owner skill must outrank this one for the prompt, which
     // prevents vacuous passes where the prompt matches nothing at all.
+    // Performance optimization: allocate map outside the loop to reduce redundant O(N) searches and map allocation overhead
+    const nameToIndex = new Map();
     for (const t of d.trigger?.negative || []) {
       const ranking = rankSkills(t.prompt, corpus);
+
+      nameToIndex.clear();
+      for (let i = 0; i < ranking.length; i++) {
+        nameToIndex.set(ranking[i].name, i);
+      }
+
       let ok = true;
       if (ranking[0].name === expected && ranking[0].score > 0) {
         console.log(`  ✗  ${expected}: ranked #1 for a negative prompt (over-broad description)`);
@@ -331,8 +339,8 @@ function runDeterministic(minRank1) {
           errors++;
           ok = false;
         } else {
-          const ownerIdx = ranking.findIndex((r) => r.name === t.owner);
-          const selfIdx = ranking.findIndex((r) => r.name === expected);
+          const ownerIdx = nameToIndex.get(t.owner);
+          const selfIdx = nameToIndex.get(expected);
           if (ranking[ownerIdx].score === 0 || ownerIdx > selfIdx) {
             console.log(`  ✗  ${expected}: declared owner ${t.owner} does not outrank it for negative prompt`);
             console.log(`       "${t.prompt}" (owner #${ownerIdx + 1} @ ${ranking[ownerIdx].score.toFixed(2)}, self #${selfIdx + 1})`);
