@@ -18,11 +18,17 @@ function readManifestVersion(manifestPath) {
   return manifest.version ?? manifest.plugins?.[0]?.version;
 }
 
-const expectedVersion = execFileSync(
-  "git",
-  ["describe", "--tags", "--abbrev=0"],
-  { encoding: "utf8" },
-).trim();
+let expectedVersion;
+try {
+  expectedVersion = execFileSync(
+    "git",
+    ["describe", "--tags", "--abbrev=0"],
+    { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }
+  ).trim();
+} catch (e) {
+  console.warn("No git tags found. Skipping version validation.");
+  process.exit(0);
+}
 
 for (const manifestPath of manifestPaths) {
   const version = readManifestVersion(manifestPath);
