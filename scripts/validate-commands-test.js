@@ -148,3 +148,33 @@ test('parses escaped quotes in double-quoted TOML descriptions', () => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /1 commands checked — 0 error\(s\) — PASSED/);
 });
+
+test('handles a completely missing directory gracefully', () => {
+  const root = makeSandbox();
+  // Only write to Claude and Gemini, leaving antigravity 'commands' directory completely missing
+  writeClaudeCommand(root, 'review', 'description: Review a change');
+  writeTomlCommand(root, path.join('.gemini', 'commands'), 'review', 'description = "Review a change"');
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /review — missing in: commands/);
+});
+
+test('handles file read errors gracefully and reports them', () => {
+  const root = makeSandbox();
+  writeMatchingCommands(root, 'review', 'Review a change');
+
+  // Create a directory ending in .md to trigger EISDIR during readFileSync
+  const badDir = path.join(root, '.claude', 'commands', 'bad.md');
+  fs.mkdirSync(badDir, { recursive: true });
+
+  writeTomlCommand(root, path.join('.gemini', 'commands'), 'bad', 'description = "Bad command"');
+  writeTomlCommand(root, 'commands', 'bad', 'description = "Bad command"');
+
+  const result = run(root);
+
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /✗  bad — cannot read file/);
+  assert.match(result.stdout, /\.claude\/commands\/bad — missing or malformed description/);
+});
