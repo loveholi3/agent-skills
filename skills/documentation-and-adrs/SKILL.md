@@ -127,8 +127,8 @@ function calculateTotal(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
 
-// Don't leave TODO comments for things you should just do now
-// TODO: add error handling  ← Just add it
+// Don't leave TO-DO comments for things you should just do now
+// TO-DO: add error handling  ← Just add it
 
 // Don't leave commented-out code
 // const oldImplementation = () => { ... }  ← Delete it, git has history
@@ -272,7 +272,7 @@ Special consideration for AI agent context:
 - Public APIs with no documentation or types
 - README that doesn't explain how to run the project
 - Commented-out code instead of deletion
-- TODO comments that have been there for weeks
+- TO-DO comments that have been there for weeks
 - No ADRs in a project with significant architectural choices
 - Documentation that restates the code instead of explaining intent
 
