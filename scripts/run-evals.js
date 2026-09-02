@@ -95,10 +95,13 @@ function tokenize(text) {
     .map(stem);
 }
 
-function termFreq(tokens) {
-  const tf = new Map();
-  for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
-  return tf;
+const sharedTfMap = new Map();
+const sharedVecMap = new Map();
+
+function termFreq(tokens, outMap = new Map()) {
+  outMap.clear();
+  for (const t of tokens) outMap.set(t, (outMap.get(t) || 0) + 1);
+  return outMap;
 }
 
 function buildCorpus(skills) {
@@ -125,17 +128,17 @@ function buildCorpus(skills) {
   return { docs, idf, vecs };
 }
 
-function vec(tf, idf) {
-  const v = new Map();
+function vec(tf, idf, outMap = new Map()) {
+  outMap.clear();
   let normSq = 0;
   // ⚡ Optimization: Calculate the vector and sum of squares (normSq) in one pass
   // to return a pre-normalized structure for the cosine function.
   for (const [term, f] of tf) {
     const w = f * idf(term);
-    v.set(term, w);
+    outMap.set(term, w);
     normSq += w * w;
   }
-  return { v, norm: Math.sqrt(normSq) };
+  return { v: outMap, norm: Math.sqrt(normSq) };
 }
 
 function cosine(a, b) {
@@ -151,7 +154,9 @@ function cosine(a, b) {
 }
 
 function rankSkills(prompt, corpus) {
-  const pv = vec(termFreq(tokenize(prompt)), corpus.idf);
+  // ⚡ Optimization: Re-use Map objects for high-frequency prompt processing
+  // to minimize memory allocations and garbage collection overhead.
+  const pv = vec(termFreq(tokenize(prompt), sharedTfMap), corpus.idf, sharedVecMap);
   const scores = [];
   for (const [name, docVec] of corpus.vecs) {
     scores.push({ name, score: cosine(pv, docVec) });
